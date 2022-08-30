@@ -67,6 +67,7 @@ func Fetch(creds *configs.Credentials) {
 	}()
 
 	// https://stackoverflow.com/questions/55203878/how-to-find-attachments-and-download-them-with-mxk-go-imap
+	// https://godocs.io/github.com/emersion/go-message#example-Read
 	log.Println("Last 4 messages:")
 	for msg := range messages {
 		log.Println("* " + msg.Envelope.Subject)
