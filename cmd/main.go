@@ -7,4 +7,5 @@ import (
 
 func main() {
 	fetch.Fetch(configs.Creds)
+
 }
