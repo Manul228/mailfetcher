@@ -20,7 +20,7 @@ func Fetch(creds *configs.Credentials) {
 
 	// Don't forget to logout
 	defer c.Logout()
-	
+
 	// Login
 	if err := c.Login(configs.Creds.Login, configs.Creds.Password); err != nil {
 		log.Fatal(err)
@@ -38,12 +38,11 @@ func Fetch(creds *configs.Credentials) {
 	for m := range mailboxes {
 		log.Println("* " + m.Name)
 	}
-	
-	err := <-done; err != nil {
+
+	if err := <-done; err != nil {
 		log.Fatal(err)
 	}
 
-	 
 	mbox, err := c.Select("INBOX", false)
 	if err != nil {
 		log.Fatal(err)
