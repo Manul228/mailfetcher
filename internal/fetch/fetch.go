@@ -4,6 +4,8 @@ import (
 	"log"
 	"mailfetcher/configs"
 
+	"time"
+
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 )
@@ -50,14 +52,30 @@ func Fetch(creds *configs.Credentials) {
 	log.Println("Flags for INBOX:", mbox.Flags)
 
 	// Get the last 4 messages
-	from := uint32(1)
-	to := mbox.Messages
-	if mbox.Messages > 3 {
-		// We're using unsigned integers here, only subtract if the result is > 0
-		from = mbox.Messages - 3
+	//from := uint32(1)
+	//to := mbox.Messages
+	//if mbox.Messages > 3 {
+	//	// We're using unsigned integers here, only subtract if the result is > 0
+	//	from = mbox.Messages - 3
+	//}
+
+	cr := imap.NewSearchCriteria()
+
+	since := time.Date(2022, 11, 01, 12, 25, 0, 0, time.UTC)
+	// Before date NOT included
+	before := time.Date(2022, 11, 06, 23, 00, 0, 0, time.UTC)
+
+	cr.Since = since
+	cr.Before = before
+
+	seqNums, err := c.Search(cr)
+
+	if err != nil {
+		log.Fatal(err)
 	}
+
 	seqset := new(imap.SeqSet)
-	seqset.AddRange(from, to)
+	seqset.AddNum(seqNums...)
 
 	messages := make(chan *imap.Message, 10)
 	done = make(chan error, 1)
@@ -69,7 +87,7 @@ func Fetch(creds *configs.Credentials) {
 	// https://godocs.io/github.com/emersion/go-message#example-Read
 	log.Println("Last 4 messages:")
 	for msg := range messages {
-		log.Println("* " + msg.Envelope.Subject)
+		log.Println("* " + msg.Envelope.Date.Format(time.UnixDate) + " *" + msg.Envelope.Subject)
 	}
 
 	if err := <-done; err != nil {
