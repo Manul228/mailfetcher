@@ -59,16 +59,20 @@ func Fetch(creds *configs.Credentials) {
 	//	from = mbox.Messages - 3
 	//}
 
-	cr := imap.NewSearchCriteria()
+	cr0 := imap.NewSearchCriteria()
+	cr1 := imap.NewSearchCriteria()
+	text := []string{"80135"}
+	cr1.Text = text
 
 	since := time.Date(2022, 11, 01, 12, 25, 0, 0, time.UTC)
 	// Before date NOT included
 	before := time.Date(2022, 11, 06, 23, 00, 0, 0, time.UTC)
 
-	cr.Since = since
-	cr.Before = before
+	cr0.Since = since
+	cr0.Before = before
 
-	seqNums, err := c.Search(cr)
+	seqNums0, err := c.Search(cr0)
+	seqNums1, err := c.Search(cr1)
 
 	if err != nil {
 		log.Fatal(err)
