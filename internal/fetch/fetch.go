@@ -66,20 +66,20 @@ func Fetch(creds *configs.Credentials) {
 
 	since := time.Date(2022, 11, 01, 12, 25, 0, 0, time.UTC)
 	// Before date NOT included
-	before := time.Date(2022, 11, 06, 23, 00, 0, 0, time.UTC)
+	before := time.Date(2022, 11, 02, 23, 00, 0, 0, time.UTC)
 
 	cr0.Since = since
 	cr0.Before = before
 
 	seqNums0, err := c.Search(cr0)
-	seqNums1, err := c.Search(cr1)
+	//seqNums1, err := c.Search(cr1)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	seqset := new(imap.SeqSet)
-	seqset.AddNum(seqNums...)
+	seqset.AddNum(seqNums0...)
 
 	messages := make(chan *imap.Message, 10)
 	done = make(chan error, 1)
@@ -89,9 +89,11 @@ func Fetch(creds *configs.Credentials) {
 
 	// https://stackoverflow.com/questions/55203878/how-to-find-attachments-and-download-them-with-mxk-go-imap
 	// https://godocs.io/github.com/emersion/go-message#example-Read
+	// https://github.com/emersion/go-imap/wiki/Fetching-messages
 	log.Println("Last 4 messages:")
 	for msg := range messages {
-		log.Println("* " + msg.Envelope.Date.Format(time.UnixDate) + " *" + msg.Envelope.Subject)
+		//log.Println("* " + msg.Envelope.Date.Format(time.UnixDate) + " *" + msg.Envelope.Subject)
+		log.Print(msg.Format())
 	}
 
 	if err := <-done; err != nil {
