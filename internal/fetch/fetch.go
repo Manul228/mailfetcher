@@ -8,7 +8,31 @@ import (
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/emersion/go-message/mail"
 )
+
+func SaveMessage(msg *imap.Message, section imap.BodySectionName) {
+	if msg == nil {
+		log.Fatal("Server didn't returned message")
+	}
+
+	r := msg.GetBody(&section)
+	if r == nil {
+		log.Fatal("Server didn't returned message body")
+	}
+
+	// Create a new mail reader
+	mr, err := mail.CreateReader(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	header := mr.Header
+	if subject, err := header.Subject(); err == nil {
+		log.Println("Subject:", subject)
+	}
+	log.Println(time.Now())
+}
 
 func Fetch(creds *configs.Credentials) {
 	log.Println("Connecting to server...")
@@ -51,14 +75,6 @@ func Fetch(creds *configs.Credentials) {
 	}
 	log.Println("Flags for INBOX:", mbox.Flags)
 
-	// Get the last 4 messages
-	//from := uint32(1)
-	//to := mbox.Messages
-	//if mbox.Messages > 3 {
-	//	// We're using unsigned integers here, only subtract if the result is > 0
-	//	from = mbox.Messages - 3
-	//}
-
 	cr0 := imap.NewSearchCriteria()
 	cr1 := imap.NewSearchCriteria()
 	text := []string{"80135"}
@@ -66,7 +82,7 @@ func Fetch(creds *configs.Credentials) {
 
 	since := time.Date(2022, 11, 01, 12, 25, 0, 0, time.UTC)
 	// Before date NOT included
-	before := time.Date(2022, 11, 02, 23, 00, 0, 0, time.UTC)
+	before := time.Date(2022, 11, 04, 23, 00, 0, 0, time.UTC)
 
 	cr0.Since = since
 	cr0.Before = before
@@ -78,26 +94,21 @@ func Fetch(creds *configs.Credentials) {
 		log.Fatal(err)
 	}
 
-	seqset := new(imap.SeqSet)
-	seqset.AddNum(seqNums0...)
+	seqSet := new(imap.SeqSet)
+	seqSet.AddNum(seqNums0...)
+
+	var section imap.BodySectionName
+	items := []imap.FetchItem{section.FetchItem()}
 
 	messages := make(chan *imap.Message, 10)
-	done = make(chan error, 1)
 	go func() {
-		done <- c.Fetch(seqset, []imap.FetchItem{imap.FetchEnvelope}, messages)
+		if err := c.Fetch(seqSet, items, messages); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
-	// https://stackoverflow.com/questions/55203878/how-to-find-attachments-and-download-them-with-mxk-go-imap
-	// https://godocs.io/github.com/emersion/go-message#example-Read
-	// https://github.com/emersion/go-imap/wiki/Fetching-messages
-	log.Println("Last 4 messages:")
 	for msg := range messages {
-		//log.Println("* " + msg.Envelope.Date.Format(time.UnixDate) + " *" + msg.Envelope.Subject)
-		log.Print(msg.Format())
-	}
-
-	if err := <-done; err != nil {
-		log.Fatal(err)
+		go SaveMessage(msg, section)
 	}
 
 	log.Println("Done!")
