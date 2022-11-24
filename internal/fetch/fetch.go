@@ -37,37 +37,17 @@ func MessageToString(msg *imap.Message) string {
 	return buffer.String()
 }
 
-func SaveMessage(msg *imap.Message, section imap.BodySectionName) {
-	if msg == nil {
-		log.Fatal("Server didn't returned message")
-	}
-
-	messageString := MessageToString(msg)
-
-	r := msg.GetBody(&section)
-	if r == nil {
-		log.Fatalln("Server didn't returned message body")
-	}
-
-	mr, err := mail.CreateReader(r)
+func SaveMessage(message string, fname string) {
+	_, err := os.Create(fname)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	id, err := mr.Header.MessageID()
-	if err != nil {
-		log.Fatalln("Cannot get message id")
-	}
-	mr.Close()
-	fname := "/tmp/" + id + ".eml"
-	f, err := os.OpenFile(fname, os.O_WRONLY, 0666)
+	f, err := os.Open(fname)
 	if err != nil {
 		log.Fatal(err)
 	}
-	f.WriteString(messageString)
+	f.WriteString(message)
 	f.Close()
-
-	log.Println(time.Now())
 }
 
 func Fetch(creds *configs.Credentials) {
@@ -144,7 +124,27 @@ func Fetch(creds *configs.Credentials) {
 	}()
 
 	for msg := range messages {
-		go SaveMessage(msg, section)
+		r := msg.GetBody(&section)
+		if r == nil {
+			log.Fatalln("Server didn't returned message body")
+		}
+
+		mr, err := mail.CreateReader(r)
+		if err != nil {
+			log.Fatal(err)
+		}
+		header := mr.Header
+		log.Print(mr)
+		subject, err := header.Subject()
+		if err != nil {
+			log.Fatalln("Cannot get message id", err)
+		}
+		fname := "/tmp/" + subject + ".eml"
+
+		ms := MessageToString(msg)
+		mr.Close()
+
+		SaveMessage(ms, fname)
 	}
 
 	log.Println("Done!")
