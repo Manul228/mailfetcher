@@ -1,8 +1,10 @@
 package fetch
 
 import (
+	"bytes"
 	"log"
 	"mailfetcher/configs"
+	"os"
 
 	"time"
 
@@ -11,26 +13,60 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
+func MessageToString(msg *imap.Message) string {
+	var buffer bytes.Buffer
+
+	for _, value := range msg.Body {
+		len := value.Len()
+		buf := make([]byte, len)
+		n, err := value.Read(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if n != len {
+			log.Fatal("Didn't read correct length")
+		}
+		n, err = buffer.Write(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if n != len {
+			log.Fatal("Didn't write correct length")
+		}
+	}
+	return buffer.String()
+}
+
 func SaveMessage(msg *imap.Message, section imap.BodySectionName) {
 	if msg == nil {
 		log.Fatal("Server didn't returned message")
 	}
 
+	messageString := MessageToString(msg)
+
 	r := msg.GetBody(&section)
 	if r == nil {
-		log.Fatal("Server didn't returned message body")
+		log.Fatalln("Server didn't returned message body")
 	}
 
-	// Create a new mail reader
 	mr, err := mail.CreateReader(r)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	header := mr.Header
-	if subject, err := header.Subject(); err == nil {
-		log.Println("Subject:", subject)
+	id, err := mr.Header.MessageID()
+	if err != nil {
+		log.Fatalln("Cannot get message id")
 	}
+	mr.Close()
+	fname := "/tmp/" + id + ".eml"
+	f, err := os.OpenFile(fname, os.O_WRONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	f.WriteString(messageString)
+	f.Close()
+
 	log.Println(time.Now())
 }
 
@@ -82,7 +118,7 @@ func Fetch(creds *configs.Credentials) {
 
 	since := time.Date(2022, 11, 01, 12, 25, 0, 0, time.UTC)
 	// Before date NOT included
-	before := time.Date(2022, 11, 04, 23, 00, 0, 0, time.UTC)
+	before := time.Date(2022, 11, 02, 23, 00, 0, 0, time.UTC)
 
 	cr0.Since = since
 	cr0.Before = before
