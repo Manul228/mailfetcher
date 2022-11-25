@@ -1,16 +1,18 @@
 package fetch
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"log"
 	"mailfetcher/configs"
 	"os"
+	"strconv"
 
 	"time"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
-	"github.com/emersion/go-message/mail"
 )
 
 func MessageToString(msg *imap.Message) string {
@@ -48,6 +50,12 @@ func SaveMessage(message string, fname string) {
 	}
 	f.WriteString(message)
 	f.Close()
+}
+
+func check(err error) {
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func Fetch(creds *configs.Credentials) {
@@ -96,9 +104,9 @@ func Fetch(creds *configs.Credentials) {
 	text := []string{"80135"}
 	cr1.Text = text
 
-	since := time.Date(2022, 11, 01, 12, 25, 0, 0, time.UTC)
+	since := time.Date(2022, 9, 28, 00, 00, 0, 0, time.UTC)
 	// Before date NOT included
-	before := time.Date(2022, 11, 02, 23, 00, 0, 0, time.UTC)
+	before := time.Date(2022, 9, 29, 23, 59, 0, 0, time.UTC)
 
 	cr0.Since = since
 	cr0.Before = before
@@ -123,28 +131,28 @@ func Fetch(creds *configs.Credentials) {
 		}
 	}()
 
+	i := 0
 	for msg := range messages {
-		r := msg.GetBody(&section)
-		if r == nil {
-			log.Fatalln("Server didn't returned message body")
+		f, err := os.Create("tmp/" + strconv.Itoa(i) + ".eml")
+		check(err)
+		defer f.Close()
+		i++
+
+		w := bufio.NewWriter(f)
+		for _, value := range msg.Body {
+			len := value.Len()
+			buf := make([]byte, len)
+			n, err := value.Read(buf)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if n != len {
+				log.Fatal("Didn't read correct length")
+			}
+
+			fmt.Fprintf(w, "%s", buf)
 		}
 
-		mr, err := mail.CreateReader(r)
-		if err != nil {
-			log.Fatal(err)
-		}
-		header := mr.Header
-		log.Print(mr)
-		subject, err := header.Subject()
-		if err != nil {
-			log.Fatalln("Cannot get message id", err)
-		}
-		fname := "/tmp/" + subject + ".eml"
-
-		ms := MessageToString(msg)
-		mr.Close()
-
-		SaveMessage(ms, fname)
 	}
 
 	log.Println("Done!")
