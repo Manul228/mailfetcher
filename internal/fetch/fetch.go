@@ -135,7 +135,6 @@ func Fetch(creds *configs.Credentials) {
 	for msg := range messages {
 		f, err := os.Create("tmp/" + strconv.Itoa(i) + ".eml")
 		check(err)
-		defer f.Close()
 		i++
 
 		w := bufio.NewWriter(f)
@@ -152,7 +151,7 @@ func Fetch(creds *configs.Credentials) {
 
 			fmt.Fprintf(w, "%s", buf)
 		}
-
+		f.Close()
 	}
 
 	log.Println("Done!")
