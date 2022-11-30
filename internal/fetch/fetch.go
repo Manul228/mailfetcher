@@ -137,22 +137,26 @@ func Fetch(creds *configs.Credentials) {
 		check(err)
 		i++
 
-		w := bufio.NewWriter(f)
-		for _, value := range msg.Body {
-			len := value.Len()
-			buf := make([]byte, len)
-			n, err := value.Read(buf)
-			if err != nil {
-				log.Fatal(err)
-			}
-			if n != len {
-				log.Fatal("Didn't read correct length")
-			}
-
-			fmt.Fprintf(w, "%s", buf)
-		}
+		saveMessage(f, msg)
 		f.Close()
 	}
 
 	log.Println("Done!")
+}
+
+func saveMessage(f *os.File, msg *imap.Message) {
+	w := bufio.NewWriter(f)
+	for _, value := range msg.Body {
+		len := value.Len()
+		buf := make([]byte, len)
+		n, err := value.Read(buf)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if n != len {
+			log.Fatal("Didn't read correct length")
+		}
+
+		fmt.Fprintf(w, "%s", buf)
+	}
 }
