@@ -7,50 +7,12 @@ import (
 	"log"
 	"mailfetcher/configs"
 	"os"
-	"strconv"
 
 	"time"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 )
-
-func MessageToString(msg *imap.Message) string {
-	var buffer bytes.Buffer
-
-	for _, value := range msg.Body {
-		len := value.Len()
-		buf := make([]byte, len)
-		n, err := value.Read(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if n != len {
-			log.Fatal("Didn't read correct length")
-		}
-		n, err = buffer.Write(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if n != len {
-			log.Fatal("Didn't write correct length")
-		}
-	}
-	return buffer.String()
-}
-
-func SaveMessage(message string, fname string) {
-	_, err := os.Create(fname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f, err := os.Open(fname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.WriteString(message)
-	f.Close()
-}
 
 func check(err error) {
 	if err != nil {
@@ -100,63 +62,44 @@ func Fetch(creds *configs.Credentials) {
 	log.Println("Flags for INBOX:", mbox.Flags)
 
 	cr0 := imap.NewSearchCriteria()
-	cr1 := imap.NewSearchCriteria()
-	text := []string{"80135"}
-	cr1.Text = text
 
-	since := time.Date(2022, 9, 28, 00, 00, 0, 0, time.UTC)
+	cr0.Since = time.Date(2022, 9, 28, 00, 00, 0, 0, time.UTC)
 	// Before date NOT included
-	before := time.Date(2022, 9, 29, 23, 59, 0, 0, time.UTC)
-
-	cr0.Since = since
-	cr0.Before = before
+	cr0.Before = time.Date(2022, 9, 29, 23, 59, 0, 0, time.UTC)
 
 	seqNums0, err := c.Search(cr0)
 	//seqNums1, err := c.Search(cr1)
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err)
 
 	seqSet := new(imap.SeqSet)
 	seqSet.AddNum(seqNums0...)
 
-	var section imap.BodySectionName
-	items := []imap.FetchItem{section.FetchItem()}
-
 	messages := make(chan *imap.Message, 10)
+
+	items := []imap.FetchItem{"ENVELOPE", "BODY[]"}
+
 	go func() {
-		if err := c.Fetch(seqSet, items, messages); err != nil {
-			log.Fatal(err)
-		}
+		err := c.Fetch(seqSet, items, messages)
+		check(err)
 	}()
 
-	i := 0
 	for msg := range messages {
-		f, err := os.Create("tmp/" + strconv.Itoa(i) + ".eml")
+		filename := "tmp/" + msg.Envelope.Subject + ".eml"
+		f, err := os.Create(filename)
 		check(err)
-		i++
-
-		saveMessage(f, msg)
+		w := bufio.NewWriter(f)
+		for _, value := range msg.Body {
+			len := value.Len()
+			buf := make([]byte, len)
+			readed, err := value.Read(buf)
+			check(err)
+			if readed != len {
+				log.Fatal("Didn't read correct length")
+			}
+			fmt.Fprintf(w, "%s", buf)
+		}
 		f.Close()
 	}
-
 	log.Println("Done!")
-}
-
-func saveMessage(f *os.File, msg *imap.Message) {
-	w := bufio.NewWriter(f)
-	for _, value := range msg.Body {
-		len := value.Len()
-		buf := make([]byte, len)
-		n, err := value.Read(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if n != len {
-			log.Fatal("Didn't read correct length")
-		}
-
-		fmt.Fprintf(w, "%s", buf)
-	}
 }
