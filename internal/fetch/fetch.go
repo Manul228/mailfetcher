@@ -1,13 +1,11 @@
 package fetch
 
 import (
-	"bufio"
+	"archive/zip"
 	"bytes"
-	"fmt"
 	"log"
 	"mailfetcher/configs"
 	"os"
-	"strconv"
 
 	"time"
 
@@ -122,7 +120,7 @@ func Fetch(creds *configs.Credentials) {
 	seqSet.AddNum(seqNums0...)
 
 	var section imap.BodySectionName
-	items := []imap.FetchItem{section.FetchItem()}
+	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
 
 	messages := make(chan *imap.Message, 10)
 	go func() {
@@ -131,13 +129,15 @@ func Fetch(creds *configs.Credentials) {
 		}
 	}()
 
-	i := 0
-	for msg := range messages {
-		f, err := os.Create("tmp/" + strconv.Itoa(i) + ".eml")
-		check(err)
-		i++
+	archive, err := os.Create("tmp/archive.zip")
+	check(err)
+	w := zip.NewWriter(archive)
 
-		w := bufio.NewWriter(f)
+	for msg := range messages {
+		f, err := w.Create(msg.Envelope.Subject + ".eml")
+		check(err)
+
+		var buffer bytes.Buffer
 		for _, value := range msg.Body {
 			len := value.Len()
 			buf := make([]byte, len)
@@ -149,10 +149,11 @@ func Fetch(creds *configs.Credentials) {
 				log.Fatal("Didn't read correct length")
 			}
 
-			fmt.Fprintf(w, "%s", buf)
+			buffer.Write(buf)
 		}
-		f.Close()
+		f.Write(buffer.Bytes())
 	}
+	w.Close()
 
 	log.Println("Done!")
 }

@@ -10,6 +10,18 @@
             "request": "launch",
             "mode": "auto",
             "program": "${fileDirname}"
-        }
+        },
+        {
+            "name": "Test Current File",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "port": 2345,
+            "host": "127.0.0.1",
+            "program": "${file}",
+            "env": {},
+            "args": [],
+            "showLog": true
+        }       
     ]
 }
