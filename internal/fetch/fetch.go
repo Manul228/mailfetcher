@@ -137,7 +137,6 @@ func Fetch(creds *configs.Credentials) {
 		f, err := w.Create(msg.Envelope.Subject + ".eml")
 		check(err)
 
-		var buffer bytes.Buffer
 		for _, value := range msg.Body {
 			len := value.Len()
 			buf := make([]byte, len)
@@ -149,9 +148,8 @@ func Fetch(creds *configs.Credentials) {
 				log.Fatal("Didn't read correct length")
 			}
 
-			buffer.Write(buf)
+			f.Write(buf)
 		}
-		f.Write(buffer.Bytes())
 	}
 	w.Close()
 
