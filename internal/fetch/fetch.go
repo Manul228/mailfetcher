@@ -2,9 +2,7 @@ package fetch
 
 import (
 	"archive/zip"
-	"bytes"
 	"log"
-	"mailfetcher/configs"
 	"os"
 
 	"time"
@@ -13,54 +11,17 @@ import (
 	"github.com/emersion/go-imap/client"
 )
 
-func MessageToString(msg *imap.Message) string {
-	var buffer bytes.Buffer
-
-	for _, value := range msg.Body {
-		len := value.Len()
-		buf := make([]byte, len)
-		n, err := value.Read(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if n != len {
-			log.Fatal("Didn't read correct length")
-		}
-		n, err = buffer.Write(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if n != len {
-			log.Fatal("Didn't write correct length")
-		}
-	}
-	return buffer.String()
-}
-
-func SaveMessage(message string, fname string) {
-	_, err := os.Create(fname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f, err := os.Open(fname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	f.WriteString(message)
-	f.Close()
-}
-
 func check(err error) {
 	if err != nil {
 		log.Panic(err)
 	}
 }
 
-func Fetch(creds *configs.Credentials) {
+func Fetch(server, login, password string) {
 	log.Println("Connecting to server...")
 
 	// Connect to server
-	c, err := client.DialTLS(configs.Creds.Server, nil)
+	c, err := client.DialTLS(server, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,7 +31,7 @@ func Fetch(creds *configs.Credentials) {
 	defer c.Logout()
 
 	// Login
-	if err := c.Login(configs.Creds.Login, configs.Creds.Password); err != nil {
+	if err := c.Login(login, password); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("Logged in")
