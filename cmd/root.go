@@ -14,7 +14,7 @@ var Password string
 
 var rootCmd = &cobra.Command{
 	Use:   "mailfetcher",
-	Short: "A brief description of your application",
+	Short: "Utility for receiving mail messages via IMAP protocol according to specified criteria.",
 	Run: func(cmd *cobra.Command, args []string) {
 		fetch.Fetch(Server, Login, Password)
 	},

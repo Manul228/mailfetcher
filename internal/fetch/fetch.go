@@ -27,7 +27,6 @@ func Fetch(server, login, password string) {
 	}
 	log.Println("Connected")
 
-	// Don't forget to logout
 	defer c.Logout()
 
 	// Login
@@ -36,7 +35,6 @@ func Fetch(server, login, password string) {
 	}
 	log.Println("Logged in")
 
-	// List mailboxes
 	mailboxes := make(chan *imap.MailboxInfo, 10)
 	done := make(chan error, 1)
 	go func() {
