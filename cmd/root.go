@@ -33,6 +33,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&req.Since, "since", "s", "", "Search start date.")
 	rootCmd.PersistentFlags().StringVarP(&req.Before, "before", "b", "", "Search end date (not included in the range).")
+	rootCmd.PersistentFlags().StringVarP(&req.Output, "output", "o", "backup.zip", "Output location.")
 
 	rootCmd.PersistentFlags().StringSliceVarP(&req.Text, "text", "t", []string{},
 		`Words separated by commas like --text=\"abra,kadabra\", which must be present at the same time.`)

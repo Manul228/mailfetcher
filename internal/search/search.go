@@ -1,8 +1,6 @@
 package search
 
 import (
-	"mailfetcher/cmd"
-
 	"github.com/emersion/go-imap"
 )
 

@@ -9,12 +9,19 @@ import (
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	"github.com/nexidian/gocliselect"
 )
 
 func check(err error) {
 	if err != nil {
 		log.Panic(err)
 	}
+}
+
+func dateEqual(date1, date2 time.Time) bool {
+	y1, m1, d1 := date1.Date()
+	y2, m2, d2 := date2.Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
 }
 
 type Request struct {
@@ -25,9 +32,34 @@ type Request struct {
 	Keywords []string
 	Since    string
 	Before   string
+	Output   string
 }
 
 func (r Request) Fetch() {
+	cr := imap.NewSearchCriteria()
+	var err error
+
+	if len(r.Since) == 0 || len(r.Before) == 0 {
+		log.Println("The time period is not specified. The search is performed all the time.")
+	}
+
+	if len(r.Since) > 0 {
+		cr.Since, err = time.Parse("02.01.2006", r.Since)
+		log.Println("Since ", cr.Since.String())
+		check(err)
+	}
+
+	if len(r.Before) > 0 {
+		cr.Before, err = time.Parse("02.01.2006", r.Before)
+		log.Println("Since ", cr.Before.String())
+		check(err)
+	}
+
+	if dateEqual(cr.Since, cr.Before) {
+		log.Println("Start date must not be equal end date.")
+		return
+	}
+
 	log.Println("Connecting to server...")
 
 	// Connect to server
@@ -51,41 +83,30 @@ func (r Request) Fetch() {
 		done <- c.List("", "*", mailboxes)
 	}()
 
-	log.Println("Mailboxes:")
+	menu := gocliselect.NewMenu("Select mailbox")
 	for m := range mailboxes {
-		log.Println("* " + m.Name)
+		menu.AddItem(m.Name, m.Name)
 	}
+	chosenMailbox := menu.Display()
 
 	if err := <-done; err != nil {
 		log.Fatal(err)
 	}
 
-	mbox, err := c.Select("INBOX", false)
+	mbox, err := c.Select(chosenMailbox, false)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("Flags for INBOX:", mbox.Flags)
+	log.Printf("Flags for %s %+v:", chosenMailbox, mbox.Flags)
 
-	cr := imap.NewSearchCriteria()
-
-	if len(r.Since) > 0 {
-		cr.Since, err = time.Parse("01.02.2006", r.Since)
-		check(err)
-	}
-
-	if len(r.Before) > 0 {
-		cr.Before, err = time.Parse("01.02.2006", r.Before)
-		check(err)
-	}
-
-	seqNums0, err := c.Search(cr)
+	seqNums, err := c.Search(cr)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(seqNums0...)
+	seqSet.AddNum(seqNums...)
 
 	var section imap.BodySectionName
 	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
@@ -93,11 +114,11 @@ func (r Request) Fetch() {
 	messages := make(chan *imap.Message, 10)
 	go func() {
 		if err := c.Fetch(seqSet, items, messages); err != nil {
-			log.Fatal(err)
+			log.Fatal("Request failed: \n", err)
 		}
 	}()
 
-	archive, err := os.Create("tmp/archive.zip")
+	archive, err := os.Create(r.Output)
 	check(err)
 	w := zip.NewWriter(archive)
 
