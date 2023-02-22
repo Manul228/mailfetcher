@@ -2,6 +2,7 @@ package request
 
 import (
 	"archive/zip"
+	"fmt"
 	"log"
 	"os"
 
@@ -51,7 +52,7 @@ func (r Request) Fetch() {
 
 	if len(r.Before) > 0 {
 		cr.Before, err = time.Parse("02.01.2006", r.Before)
-		log.Println("Since ", cr.Before.String())
+		log.Println("Before ", cr.Before.String())
 		check(err)
 	}
 
@@ -85,7 +86,12 @@ func (r Request) Fetch() {
 
 	menu := gocliselect.NewMenu("Select mailbox")
 	for m := range mailboxes {
-		menu.AddItem(m.Name, m.Name)
+		status := imap.NewMailboxStatus(m.Name, []imap.StatusItem{imap.StatusMessages})
+		var amount string = ""
+		if status.Messages > 0 {
+			amount = fmt.Sprint(status.Messages)
+		}
+		menu.AddItem(m.Name+" "+amount, m.Name)
 	}
 	chosenMailbox := menu.Display()
 
