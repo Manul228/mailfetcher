@@ -1,4 +1,4 @@
-package fetch
+package request
 
 import (
 	"archive/zip"
@@ -17,11 +17,21 @@ func check(err error) {
 	}
 }
 
-func Fetch(server, login, password string) {
+type Request struct {
+	Server   string
+	Login    string
+	Password string
+	Text     []string
+	Keywords []string
+	Since    string
+	Before   string
+}
+
+func (r Request) Fetch() {
 	log.Println("Connecting to server...")
 
 	// Connect to server
-	c, err := client.DialTLS(server, nil)
+	c, err := client.DialTLS(r.Server, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -30,7 +40,7 @@ func Fetch(server, login, password string) {
 	defer c.Logout()
 
 	// Login
-	if err := c.Login(login, password); err != nil {
+	if err := c.Login(r.Login, r.Password); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("Logged in")
@@ -56,20 +66,19 @@ func Fetch(server, login, password string) {
 	}
 	log.Println("Flags for INBOX:", mbox.Flags)
 
-	cr0 := imap.NewSearchCriteria()
-	cr1 := imap.NewSearchCriteria()
-	text := []string{"80135"}
-	cr1.Text = text
+	cr := imap.NewSearchCriteria()
 
-	since := time.Date(2022, 9, 28, 00, 00, 0, 0, time.UTC)
-	// Before date NOT included
-	before := time.Date(2022, 9, 29, 23, 59, 0, 0, time.UTC)
+	if len(r.Since) > 0 {
+		cr.Since, err = time.Parse("01.02.2006", r.Since)
+		check(err)
+	}
 
-	cr0.Since = since
-	cr0.Before = before
+	if len(r.Before) > 0 {
+		cr.Before, err = time.Parse("01.02.2006", r.Before)
+		check(err)
+	}
 
-	seqNums0, err := c.Search(cr0)
-	//seqNums1, err := c.Search(cr1)
+	seqNums0, err := c.Search(cr)
 
 	if err != nil {
 		log.Fatal(err)

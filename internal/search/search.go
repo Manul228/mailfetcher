@@ -1,10 +1,13 @@
 package search
 
-func Search() int {
-	return 0
-}
+import (
+	"mailfetcher/cmd"
 
-//func UniteUint32Arrays(arrays ... []uint32): []uint32 {
-//	isUnique := make(map[]struct{})
-//	var result []uint32
-//}
+	"github.com/emersion/go-imap"
+)
+
+func GetSCByText(text []string) *imap.SearchCriteria {
+	sc := imap.NewSearchCriteria()
+	sc.Text = text
+	return sc
+}
