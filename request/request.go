@@ -42,9 +42,9 @@ type Request struct {
 func (r Request) search(seq *[]uint32, c *client.Client) error {
 	var err error
 
-	if len(r.Text) > 0 && len(r.Keywords) > 0 {
-		return fmt.Errorf("the specified arguments --text and --keywords cannot be present at the same time")
-	}
+	// if len(r.Text) > 0 && len(r.Keywords) > 0 {
+	// 	return fmt.Errorf("the specified arguments --text and --keywords cannot be present at the same time")
+	// }
 
 	if len(r.Since) == 0 && len(r.Before) == 0 {
 		log.Println("The time period is not specified. The search is performed all the time.")
@@ -99,6 +99,7 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 		}
 	}
 
+	log.Print(r.Text)
 	if len(r.Text) > 0 {
 		sc := imap.NewSearchCriteria()
 		sc.Since = since
@@ -164,18 +165,17 @@ func (r Request) Fetch() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Flags for %s %+v:", chosenMailbox, mbox.Flags)
+	log.Printf("Amount of messages for %s %d:", chosenMailbox, mbox.Messages)
 
 	var seqNums []uint32
 	err = r.search(&seqNums, c)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if len(seqNums) == 0 {
 		log.Fatalln("No messages found!")
 	}
 	log.Printf("Found %d items!", len(seqNums))
-
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	seqSet := new(imap.SeqSet)
 	seqSet.AddNum(seqNums...)
