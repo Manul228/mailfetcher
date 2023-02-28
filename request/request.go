@@ -39,64 +39,91 @@ type Request struct {
 	Output   string
 }
 
-func (r Request) buildSearchCriteria(cr *imap.SearchCriteria) {
+func (r Request) search(seq *[]uint32, c *client.Client) error {
 	var err error
 
-	kwSeacrhCriteria := imap.NewSearchCriteria()
-
-	if len(r.Keywords) > 0 {
-		kwSeacrhCriteria.Text = append(kwSeacrhCriteria.Text, r.Keywords...)
+	if len(r.Text) > 0 && len(r.Keywords) > 0 {
+		return fmt.Errorf("the specified arguments --text and --keywords cannot be present at the same time")
 	}
 
-	if len(r.Since) == 0 || len(r.Before) == 0 {
+	if len(r.Since) == 0 && len(r.Before) == 0 {
 		log.Println("The time period is not specified. The search is performed all the time.")
 	}
 
+	var since, before time.Time
+
 	if len(r.Since) > 0 {
-		cr.Since, err = time.Parse("02.01.2006", r.Since)
-		log.Println("Since ", cr.Since.String())
-		check(err)
+		since, err = time.Parse("02.01.2006", r.Since)
+		if err != nil {
+			return fmt.Errorf("since parameter is incorrect")
+		}
 	}
 
 	if len(r.Before) > 0 {
-		cr.Before, err = time.Parse("02.01.2006", r.Before)
-		log.Println("Before ", cr.Before.String())
-		check(err)
+		before, err = time.Parse("02.01.2006", r.Before)
+		if err != nil {
+			return fmt.Errorf("before parameter is incorrect")
+		}
 	}
 
-	if dateEqual(cr.Since, cr.Before) {
+	if dateEqual(since, before) {
 		log.Println("Start date must not be equal end date.")
 	}
 
-	cr.Text = append(cr.Text, r.Text...)
+	seqNumsSet := make(map[uint32]struct{})
 
-	// var kwsc [][2]*imap.SearchCriteria
-	// for _, kw := range r.Keywords {
-	// 	kwsc = append(kwsc, [2]*imap.SearchCriteria{
-	// 		{
-	// 			{Text: []string{kw}},
-	// 			{Text: []string{""}},
-	// 		},
-	// 	})
-	// }
+	if len(r.Keywords) > 0 {
+		keywords := make(chan string, 10)
 
-	// cr.Or = [][2]*imap.SearchCriteria{
-	// 	{
-	// 		{Text: []string{"Скидка"}},
-	// 		{Text: []string{""}},
-	// 	},
-	// 	{
-	// 		{Text: []string{"промокод"}},
-	// 		{Text: []string{""}},
-	// 	},
-	// }
+		go func() {
+			for _, kw := range r.Keywords {
+				keywords <- kw
+			}
+			close(keywords)
+		}()
+
+		for kw := range keywords {
+			sc := imap.NewSearchCriteria()
+			sc.Since = since
+			sc.Before = before
+			sc.Text = append(sc.Text, kw)
+			log.Println("Searching for --keyword", kw)
+			seqNums, err := c.Search(sc)
+			if err != nil {
+				return fmt.Errorf("keyword search failed")
+			}
+
+			for _, n := range seqNums {
+				seqNumsSet[n] = struct{}{}
+			}
+		}
+	}
+
+	if len(r.Text) > 0 {
+		sc := imap.NewSearchCriteria()
+		sc.Since = since
+		sc.Before = before
+		sc.Text = append(sc.Text, r.Text...)
+		log.Println("Searching for --text", r.Text)
+		seqNums, err := c.Search(sc)
+		if err != nil {
+			return fmt.Errorf("text search failed")
+		}
+
+		for _, n := range seqNums {
+			seqNumsSet[n] = struct{}{}
+		}
+	}
+
+	for num := range seqNumsSet {
+		*seq = append(*seq, num)
+	}
+
+	return nil
 }
 
 func (r Request) Fetch() {
-	cr := imap.NewSearchCriteria()
 	var err error
-
-	r.buildSearchCriteria(cr)
 
 	log.Println("Connecting to server...")
 	c, err := client.DialTLS(r.Server, nil)
@@ -139,9 +166,8 @@ func (r Request) Fetch() {
 	}
 	log.Printf("Flags for %s %+v:", chosenMailbox, mbox.Flags)
 
-	log.Println(cr.Format())
-
-	seqNums, err := c.Search(cr)
+	var seqNums []uint32
+	err = r.search(&seqNums, c)
 	if len(seqNums) == 0 {
 		log.Fatalln("No messages found!")
 	}
@@ -155,7 +181,7 @@ func (r Request) Fetch() {
 	seqSet.AddNum(seqNums...)
 
 	var section imap.BodySectionName
-	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope, imap.HeaderSpecifier}
+	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
 
 	start := time.Now()
 	messages := make(chan *imap.Message, 10)
@@ -170,7 +196,8 @@ func (r Request) Fetch() {
 	w := zip.NewWriter(archive)
 
 	for msg := range messages {
-		f, err := w.Create(msg.Envelope.Subject + ".eml")
+		prefix := msg.Envelope.From[0].Address() + " " + msg.Envelope.MessageId + " "
+		f, err := w.Create(prefix + msg.Envelope.Subject + ".eml")
 		check(err)
 
 		for _, value := range msg.Body {
