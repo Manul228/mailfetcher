@@ -20,6 +20,9 @@ func check(err error) {
 }
 
 func dateEqual(date1, date2 time.Time) bool {
+	if date1.IsZero() || date2.IsZero() {
+		return false
+	}
 	y1, m1, d1 := date1.Date()
 	y2, m2, d2 := date2.Date()
 	return y1 == y2 && m1 == m2 && d1 == d2
@@ -36,9 +39,14 @@ type Request struct {
 	Output   string
 }
 
-func (r Request) Fetch() {
-	cr := imap.NewSearchCriteria()
+func (r Request) buildSearchCriteria(cr *imap.SearchCriteria) {
 	var err error
+
+	kwSeacrhCriteria := imap.NewSearchCriteria()
+
+	if len(r.Keywords) > 0 {
+		kwSeacrhCriteria.Text = append(kwSeacrhCriteria.Text, r.Keywords...)
+	}
 
 	if len(r.Since) == 0 || len(r.Before) == 0 {
 		log.Println("The time period is not specified. The search is performed all the time.")
@@ -58,12 +66,39 @@ func (r Request) Fetch() {
 
 	if dateEqual(cr.Since, cr.Before) {
 		log.Println("Start date must not be equal end date.")
-		return
 	}
 
-	log.Println("Connecting to server...")
+	cr.Text = append(cr.Text, r.Text...)
 
-	// Connect to server
+	// var kwsc [][2]*imap.SearchCriteria
+	// for _, kw := range r.Keywords {
+	// 	kwsc = append(kwsc, [2]*imap.SearchCriteria{
+	// 		{
+	// 			{Text: []string{kw}},
+	// 			{Text: []string{""}},
+	// 		},
+	// 	})
+	// }
+
+	// cr.Or = [][2]*imap.SearchCriteria{
+	// 	{
+	// 		{Text: []string{"Скидка"}},
+	// 		{Text: []string{""}},
+	// 	},
+	// 	{
+	// 		{Text: []string{"промокод"}},
+	// 		{Text: []string{""}},
+	// 	},
+	// }
+}
+
+func (r Request) Fetch() {
+	cr := imap.NewSearchCriteria()
+	var err error
+
+	r.buildSearchCriteria(cr)
+
+	log.Println("Connecting to server...")
 	c, err := client.DialTLS(r.Server, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -72,7 +107,6 @@ func (r Request) Fetch() {
 
 	defer c.Logout()
 
-	// Login
 	if err := c.Login(r.Login, r.Password); err != nil {
 		log.Fatal(err)
 	}
@@ -105,7 +139,13 @@ func (r Request) Fetch() {
 	}
 	log.Printf("Flags for %s %+v:", chosenMailbox, mbox.Flags)
 
+	log.Println(cr.Format())
+
 	seqNums, err := c.Search(cr)
+	if len(seqNums) == 0 {
+		log.Fatalln("No messages found!")
+	}
+	log.Printf("Found %d items!", len(seqNums))
 
 	if err != nil {
 		log.Fatal(err)
@@ -115,8 +155,9 @@ func (r Request) Fetch() {
 	seqSet.AddNum(seqNums...)
 
 	var section imap.BodySectionName
-	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope}
+	items := []imap.FetchItem{section.FetchItem(), imap.FetchEnvelope, imap.HeaderSpecifier}
 
+	start := time.Now()
 	messages := make(chan *imap.Message, 10)
 	go func() {
 		if err := c.Fetch(seqSet, items, messages); err != nil {
@@ -147,6 +188,7 @@ func (r Request) Fetch() {
 		}
 	}
 	w.Close()
+	finish := time.Since(start)
+	log.Println("Done in ", finish)
 
-	log.Println("Done!")
 }

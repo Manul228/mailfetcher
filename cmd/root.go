@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"mailfetcher/internal/request"
+	"mailfetcher/request"
 )
 
 var req request.Request
