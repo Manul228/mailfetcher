@@ -40,7 +40,7 @@ type Request struct {
 	Output   string
 }
 
-func (r Request) search(seq *[]uint32, c *client.Client) error {
+func (r Request) search(c *client.Client) ([]uint32, error) {
 	var err error
 
 	if len(r.Since) == 0 && len(r.Before) == 0 {
@@ -52,20 +52,24 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 	if len(r.Since) > 0 {
 		since, err = time.Parse("02.01.2006", r.Since)
 		if err != nil {
-			return fmt.Errorf("since parameter is incorrect")
+			return nil, fmt.Errorf("since parameter is incorrect")
 		}
 	}
 
 	if len(r.Before) > 0 {
 		before, err = time.Parse("02.01.2006", r.Before)
 		if err != nil {
-			return fmt.Errorf("before parameter is incorrect")
+			return nil, fmt.Errorf("before parameter is incorrect")
 		}
 	}
 
 	if dateEqual(since, before) {
-		log.Println("Start date must not be equal end date.")
+		return nil, fmt.Errorf("start date must not be equal end date")
 	}
+
+	sc := imap.NewSearchCriteria()
+	sc.Since = since
+	sc.Before = before
 
 	keywordsSet := mapset.NewSet[uint32]()
 
@@ -80,14 +84,12 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 		}()
 
 		for kw := range keywords {
-			sc := imap.NewSearchCriteria()
-			sc.Since = since
-			sc.Before = before
+			sc.Text = sc.Text[:0]
 			sc.Text = append(sc.Text, kw)
 			log.Println("Searching for --keyword", kw)
 			seqNums, err := c.Search(sc)
 			if err != nil {
-				return fmt.Errorf("keyword search failed")
+				return nil, fmt.Errorf("keyword search failed")
 			}
 
 			for _, num := range seqNums {
@@ -99,14 +101,12 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 
 	textSet := mapset.NewSet[uint32]()
 	if len(r.Text) > 0 {
-		sc := imap.NewSearchCriteria()
-		sc.Since = since
-		sc.Before = before
+		sc.Text = sc.Text[:0]
 		sc.Text = append(sc.Text, r.Text...)
 		log.Println("Searching for --text", r.Text)
 		seqNums, err := c.Search(sc)
 		if err != nil {
-			return fmt.Errorf("text search failed")
+			return nil, fmt.Errorf("text search failed")
 		}
 
 		for _, num := range seqNums {
@@ -114,9 +114,9 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 		}
 	}
 
-	*seq = textSet.Intersect(keywordsSet).ToSlice()
+	seqNums := textSet.Intersect(keywordsSet).ToSlice()
 
-	return nil
+	return seqNums, nil
 }
 
 func (r Request) Fetch() {
@@ -161,10 +161,9 @@ func (r Request) Fetch() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Amount of messages for %s %d:", chosenMailbox, mbox.Messages)
+	log.Printf("Amount of messages for %s is %d", chosenMailbox, mbox.Messages)
 
-	var seqNums []uint32
-	err = r.search(&seqNums, c)
+	seqNums, err := r.search(c)
 	if err != nil {
 		log.Fatal(err)
 	}
