@@ -8,6 +8,7 @@ import (
 
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 	"github.com/nexidian/gocliselect"
@@ -42,10 +43,6 @@ type Request struct {
 func (r Request) search(seq *[]uint32, c *client.Client) error {
 	var err error
 
-	// if len(r.Text) > 0 && len(r.Keywords) > 0 {
-	// 	return fmt.Errorf("the specified arguments --text and --keywords cannot be present at the same time")
-	// }
-
 	if len(r.Since) == 0 && len(r.Before) == 0 {
 		log.Println("The time period is not specified. The search is performed all the time.")
 	}
@@ -70,7 +67,7 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 		log.Println("Start date must not be equal end date.")
 	}
 
-	seqNumsSet := make(map[uint32]struct{})
+	keywordsSet := mapset.NewSet[uint32]()
 
 	if len(r.Keywords) > 0 {
 		keywords := make(chan string, 10)
@@ -93,13 +90,14 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 				return fmt.Errorf("keyword search failed")
 			}
 
-			for _, n := range seqNums {
-				seqNumsSet[n] = struct{}{}
+			for _, num := range seqNums {
+				keywordsSet.Add(num)
 			}
+
 		}
 	}
 
-	log.Print(r.Text)
+	textSet := mapset.NewSet[uint32]()
 	if len(r.Text) > 0 {
 		sc := imap.NewSearchCriteria()
 		sc.Since = since
@@ -111,14 +109,12 @@ func (r Request) search(seq *[]uint32, c *client.Client) error {
 			return fmt.Errorf("text search failed")
 		}
 
-		for _, n := range seqNums {
-			seqNumsSet[n] = struct{}{}
+		for _, num := range seqNums {
+			textSet.Add(num)
 		}
 	}
 
-	for num := range seqNumsSet {
-		*seq = append(*seq, num)
-	}
+	*seq = textSet.Intersect(keywordsSet).ToSlice()
 
 	return nil
 }
