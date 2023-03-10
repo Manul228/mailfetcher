@@ -197,6 +197,14 @@ func (r Request) Fetch() {
 	check(err)
 	w := zip.NewWriter(archive)
 
+	r.writeEmails(seqNums, messages, w)
+	w.Close()
+	finish := time.Since(start)
+	log.Println("Done in ", finish)
+
+}
+
+func (Request) writeEmails(seqNums []uint32, messages chan *imap.Message, w *zip.Writer) {
 	bar := progressbar.Default(int64(len(seqNums)))
 	for msg := range messages {
 		prefix := msg.Envelope.From[0].Address() + " " + msg.Envelope.MessageId + " "
@@ -218,8 +226,4 @@ func (r Request) Fetch() {
 			bar.Add(1)
 		}
 	}
-	w.Close()
-	finish := time.Since(start)
-	log.Println("Done in ", finish)
-
 }
