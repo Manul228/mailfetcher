@@ -12,6 +12,7 @@ import (
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 	"github.com/nexidian/gocliselect"
+	"github.com/schollz/progressbar/v3"
 )
 
 func check(err error) {
@@ -71,6 +72,12 @@ func (r Request) search(c *client.Client) ([]uint32, error) {
 	sc.Since = since
 	sc.Before = before
 
+	var seqNums []uint32
+
+	if len(r.Keywords) == 0 && len(r.Text) == 0 {
+		return c.Search(sc)
+	}
+
 	keywordsSet := mapset.NewSet[uint32]()
 
 	if len(r.Keywords) > 0 {
@@ -87,7 +94,7 @@ func (r Request) search(c *client.Client) ([]uint32, error) {
 			sc.Text = sc.Text[:0]
 			sc.Text = append(sc.Text, kw)
 			log.Println("Searching for --keyword", kw)
-			seqNums, err := c.Search(sc)
+			seqNums, err = c.Search(sc)
 			if err != nil {
 				return nil, fmt.Errorf("keyword search failed")
 			}
@@ -104,7 +111,7 @@ func (r Request) search(c *client.Client) ([]uint32, error) {
 		sc.Text = sc.Text[:0]
 		sc.Text = append(sc.Text, r.Text...)
 		log.Println("Searching for --text", r.Text)
-		seqNums, err := c.Search(sc)
+		seqNums, err = c.Search(sc)
 		if err != nil {
 			return nil, fmt.Errorf("text search failed")
 		}
@@ -114,7 +121,7 @@ func (r Request) search(c *client.Client) ([]uint32, error) {
 		}
 	}
 
-	seqNums := textSet.Intersect(keywordsSet).ToSlice()
+	seqNums = textSet.Intersect(keywordsSet).ToSlice()
 
 	return seqNums, nil
 }
@@ -190,6 +197,7 @@ func (r Request) Fetch() {
 	check(err)
 	w := zip.NewWriter(archive)
 
+	bar := progressbar.Default(int64(len(seqNums)))
 	for msg := range messages {
 		prefix := msg.Envelope.From[0].Address() + " " + msg.Envelope.MessageId + " "
 		f, err := w.Create(prefix + msg.Envelope.Subject + ".eml")
@@ -207,6 +215,7 @@ func (r Request) Fetch() {
 			}
 
 			f.Write(buf)
+			bar.Add(1)
 		}
 	}
 	w.Close()
